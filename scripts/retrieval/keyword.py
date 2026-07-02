@@ -1,14 +1,15 @@
 import os
 import re
 
-REPO_PATH = "/Users/amansingh/Desktop/Practice/chef_ai_mobile/lib"
+from scripts.config import REPO_PATH
+from scripts.models.retrieval_models import RetrievedChunk
 
 
 # ==========================================================
 # TOKENIZATION
 # ==========================================================
 
-def tokenize(text):
+def tokenize(text: str) -> list[str]:
     """
     Converts:
 
@@ -25,14 +26,14 @@ def tokenize(text):
     text = re.sub(
         r"([a-z])([A-Z])",
         r"\1 \2",
-        text
+        text,
     )
 
     text = text.lower()
 
     return re.findall(
         r"[a-z0-9]+",
-        text
+        text,
     )
 
 
@@ -40,7 +41,7 @@ def tokenize(text):
 # CHUNK NAME
 # ==========================================================
 
-def extract_chunk_name(content):
+def extract_chunk_name(content: str) -> str:
 
     patterns = [
 
@@ -48,15 +49,14 @@ def extract_chunk_name(content):
         r"enum\s+(\w+)",
         r"extension\s+(\w+)",
         r"mixin\s+(\w+)",
-        r"final\s+(\w+)"
+        r"typedef\s+(\w+)",
+        r"final\s+(\w+)",
+
     ]
 
     for pattern in patterns:
 
-        match = re.search(
-            pattern,
-            content
-        )
+        match = re.search(pattern, content)
 
         if match:
             return match.group(1)
@@ -65,31 +65,36 @@ def extract_chunk_name(content):
 
 
 # ==========================================================
-# WORD BOUNDARY COUNT
+# WORD COUNT
 # ==========================================================
 
-def count_word_occurrences(
-    token,
-    text
-):
+def count_occurrences(
+    token: str,
+    text: str,
+) -> int:
 
     return len(
+
         re.findall(
+
             rf"\b{re.escape(token)}\b",
-            text
+
+            text,
+
         )
+
     )
 
 
 # ==========================================================
-# SCORE
+# SCORE FILE
 # ==========================================================
 
 def calculate_score(
-    query_tokens,
-    filename,
-    content
-):
+    query_tokens: list[str],
+    filename: str,
+    content: str,
+) -> int:
 
     score = 0
 
@@ -115,55 +120,43 @@ def calculate_score(
             score += 40
 
     # ------------------------------------------------------
-    # class/widget name
+    # widget/class name
     # ------------------------------------------------------
 
     for token in query_tokens:
 
         if token in class_tokens:
-            score += 50
+            score += 60
 
     # ------------------------------------------------------
-    # exact word matches
+    # exact occurrences
     # ------------------------------------------------------
 
     for token in query_tokens:
 
-        occurrences = count_word_occurrences(
-            token,
-            content_lower
+        score += (
+            count_occurrences(
+                token,
+                content_lower,
+            )
+            * 6
         )
 
-        score += occurrences * 6
-
     # ------------------------------------------------------
-    # token presence
+    # token overlap
     # ------------------------------------------------------
 
     overlap = len(
-        set(query_tokens) &
+
+        set(query_tokens)
+
+        &
+
         token_set
+
     )
 
     score += overlap * 8
-
-    # ------------------------------------------------------
-    # comments
-    # ------------------------------------------------------
-
-    comments = re.findall(
-        r"//.*",
-        content
-    )
-
-    for comment in comments:
-
-        comment = comment.lower()
-
-        for token in query_tokens:
-
-            if token in comment:
-                score += 2
 
     # ------------------------------------------------------
     # imports
@@ -171,7 +164,7 @@ def calculate_score(
 
     imports = re.findall(
         r"import\s+'([^']+)'",
-        content
+        content,
     )
 
     for imp in imports:
@@ -183,6 +176,24 @@ def calculate_score(
             if token in imp_tokens:
                 score += 8
 
+    # ------------------------------------------------------
+    # comments
+    # ------------------------------------------------------
+
+    comments = re.findall(
+        r"//.*",
+        content,
+    )
+
+    for comment in comments:
+
+        comment = comment.lower()
+
+        for token in query_tokens:
+
+            if token in comment:
+                score += 2
+
     return score
 
 
@@ -190,75 +201,88 @@ def calculate_score(
 # SEARCH
 # ==========================================================
 
-def search_repo(
-    query,
-    repo_path=REPO_PATH,
-    limit=10
-):
+def keyword_search(
+    query: str,
+    limit: int = 10,
+) -> list[RetrievedChunk]:
 
     query_tokens = tokenize(query)
 
-    results = []
+    results: list[RetrievedChunk] = []
 
-    for root, _, files in os.walk(repo_path):
+    for root, _, files in os.walk(REPO_PATH):
 
         for file in files:
 
             if not file.endswith(".dart"):
                 continue
 
-            full_path = os.path.join(
+            path = os.path.join(
                 root,
-                file
+                file,
             )
 
             try:
 
                 with open(
-                    full_path,
+                    path,
                     "r",
-                    encoding="utf-8"
+                    encoding="utf-8",
                 ) as f:
 
                     content = f.read()
 
             except Exception:
+
                 continue
 
             score = calculate_score(
+
                 query_tokens,
+
                 file,
-                content
+
+                content,
+
             )
 
             if score == 0:
                 continue
 
-            results.append({
+            results.append(
 
-                "file": file,
+                RetrievedChunk(
 
-                "path": full_path,
+                    file=file,
 
-                "chunk_name": extract_chunk_name(
-                    content
-                ),
+                    path=path,
 
-                "document": content,
+                    chunk_name=extract_chunk_name(
+                        content,
+                    ),
 
-                "score": score
-            })
+                    chunk_type="keyword",
+
+                    document=content,
+
+                    source="keyword",
+
+                    score=float(score),
+
+                )
+
+            )
 
     results.sort(
-        key=lambda x: x["score"],
-        reverse=True
+        key=lambda x: x.score,
+        reverse=True,
     )
 
     return results[:limit]
 
 
 # ==========================================================
-# TEST
+# DEBUG
 # ==========================================================
 
 if __name__ == "__main__":
@@ -272,7 +296,7 @@ if __name__ == "__main__":
         if query.lower() == "exit":
             break
 
-        results = search_repo(query)
+        results = keyword_search(query)
 
         print()
 
@@ -285,7 +309,11 @@ if __name__ == "__main__":
         for result in results:
 
             print(
-                f"{result['score']:4} | "
-                f"{result['file']} | "
-                f"{result['chunk_name']}"
+
+                f"{int(result.score):4} | "
+
+                f"{result.file} | "
+
+                f"{result.chunk_name}"
+
             )
