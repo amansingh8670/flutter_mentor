@@ -3,6 +3,9 @@ from scripts.retrieval.keyword import keyword_search
 from scripts.retrieval.reranker import rerank_results
 from scripts.retrieval.formatter import format_chunks
 
+# Maximum chunks allowed into the final prompt.
+MAX_FINAL_CHUNKS = 6
+
 
 # ==========================================================
 # SINGLE QUERY
@@ -29,6 +32,8 @@ def retrieve_context(
         keyword_results,
     )
 
+    merged = merged[:MAX_FINAL_CHUNKS]
+
     if return_string:
         return format_chunks(merged)
 
@@ -41,7 +46,7 @@ def retrieve_context(
 
 def retrieve_multiple_context(
     queries: list[str],
-    semantic_limit: int = 3,
+    semantic_limit: int = 2,
     keyword_limit: int = 2,
 ):
     all_results = []
@@ -65,17 +70,19 @@ def retrieve_multiple_context(
             limit=keyword_limit,
         )
 
-        all_results.extend(
-            rerank_results(
-                semantic,
-                keyword,
-            )
+        merged = rerank_results(
+            semantic,
+            keyword,
         )
+
+        all_results.extend(merged)
 
     merged = rerank_results(
         semantic_chunks=all_results,
         keyword_chunks=[],
     )
+
+    merged = merged[:MAX_FINAL_CHUNKS]
 
     print(f"\nUnique chunks : {len(merged)}")
 

@@ -12,185 +12,174 @@ def build_prompt(
     vision: VisionAnalysis | None = None,
 ) -> str:
 
-    vision_section = ""
+    sections = []
+
+    # ======================================================
+    # SCREEN ANALYSIS
+    # ======================================================
 
     if vision:
 
-        vision_section = f"""
-=========================================================
-PRIMARY SOURCE OF TRUTH
-=========================================================
+        sections.append(f"""
+## SCREEN ANALYSIS
 
-The uploaded screenshot is ALWAYS the UI that must be implemented.
+This screenshot is the SINGLE SOURCE OF TRUTH.
 
-Never infer the requested screen from retrieved repository files.
+Implement exactly this UI.
 
-Repository code is ONLY reference material for discovering:
-
-- reusable widgets
-- reusable screens
-- reusable sections
-- theme
-- colors
-- typography
-- architecture
-- coding style
-
-Flutter documentation is ONLY reference material for:
-
-- current Flutter APIs
-- latest widgets
-- Material 3 patterns
-- best practices
-- deprecated API replacements
-
-Priority Order
-
-1. Uploaded Screenshot
-2. User Request
-3. Existing Project Code
-4. Flutter Documentation
-
-If these sources disagree,
-always follow the higher priority source.
-
-=========================================================
-SCREEN ANALYSIS
-=========================================================
-
-Screen:
+Screen
 {vision.screen}
 
-Theme:
+Theme
 {vision.theme}
 
-Layout:
+Layout
 {vision.layout}
 
-Widgets:
+Widgets
 {vision.widgets}
 
-Visible Text:
+Texts
 {vision.texts}
 
-Actions:
+Actions
 {vision.actions}
-"""
+""".strip())
 
-    flutter_docs = ""
+    # ======================================================
+    # FLUTTER DOCS
+    # ======================================================
 
     if flutter_context.strip():
 
-        flutter_docs = f"""
-=========================================================
-LATEST FLUTTER DOCUMENTATION
-=========================================================
+        sections.append(f"""
+## FLUTTER DOCS
 
-Use this ONLY for:
-
-- latest Flutter APIs
-- Material 3
-- recommended widgets
-- replacement of deprecated APIs
-- modern Flutter coding style
+Use ONLY if newer Flutter APIs are required.
 
 {flutter_context}
-"""
+""".strip())
+
+    # ======================================================
+    # FINAL PROMPT
+    # ======================================================
 
     return f"""
-You are a Staff Flutter Engineer.
+You are an expert Flutter engineer.
 
-You are working inside an EXISTING production Flutter project.
+You are modifying an EXISTING Flutter project.
 
-You are extending the project.
+===========================================================================
+PRIORITY
+===========================================================================
 
-You are NOT creating a new architecture.
+1. Screenshot
+2. User request
+3. Existing project code
+4. Flutter docs
 
-{vision_section}
+If repository code conflicts with the screenshot,
+follow the screenshot.
 
-=========================================================
+===========================================================================
 PROJECT RULES
-=========================================================
-
-Use existing project architecture.
+===========================================================================
 
 Reuse existing widgets whenever possible.
 
-Never recreate an existing widget.
-
-Instantiate reusable widgets instead.
-
 Reuse:
 
-- AppColors
 - AppTheme
+- AppColors
 - ThemeProvider
-- design system
-- spacing
-- typography
-
-Follow existing:
-
-- folder structure
-- naming convention
-- coding style
-
-If an exact widget already exists,
-instantiate it.
-
-If not,
-create a new widget.
-
-Never invent project files.
+- Design System
+- Existing Sections
+- Existing Widgets
 
 Never rename existing files.
 
-When creating new widgets,
-follow the project's existing patterns.
+Never redesign the architecture.
 
-{flutter_docs}
+Only create new widgets when required.
 
-=========================================================
-REQUEST
-=========================================================
+===========================================================================
+IMPORTANT
+===========================================================================
+
+Your goal is to generate a WORKING UI.
+
+Do NOT spend time explaining.
+
+Do NOT describe Flutter concepts.
+
+Do NOT explain architecture.
+
+Do NOT produce long paragraphs.
+
+Generate code quickly.
+
+If a reusable widget is unavailable,
+replace it with a normal Flutter widget.
+
+Never stop because context is incomplete.
+
+===========================================================================
+SCREEN
+===========================================================================
+
+{chr(10).join(sections)}
+
+===========================================================================
+USER REQUEST
+===========================================================================
 
 {question}
 
-=========================================================
-PROJECT REFERENCE CODE
-=========================================================
+===========================================================================
+REFERENCE PROJECT CODE
+===========================================================================
 
-This is NOT the requested UI.
+Use ONLY if useful.
 
-It is ONLY reference code to discover reusable components.
+Ignore unrelated files.
 
 {project_context}
 
-=========================================================
-RESPONSE FORMAT
-=========================================================
+===========================================================================
+OUTPUT FORMAT
+===========================================================================
 
-Return exactly in this order.
+Return ONLY these sections.
 
-1. Screen Understanding
+## Reusable Widgets
 
-2. High Level Plan
+• widget names only
 
-3. Existing Widgets to Reuse
-   - include filenames
+## Files To Modify
 
-4. Existing Files to Modify
+• filenames only
 
-5. New Files to Create
+## Files To Create
 
-6. Flutter Documentation Used
-   (only if applicable)
+• filenames only
 
-7. Complete Production-Ready Flutter Code
+## Flutter Code
 
-8. Architectural Decisions
+Generate ONE compilable Dart file.
 
-=========================================================
-ANSWER
-=========================================================
-"""
+Requirements:
+
+- imports
+- StatelessWidget
+- build()
+- helper widgets if needed
+- placeholder data if required
+- no TODOs
+- no pseudocode
+- no markdown explanations inside code
+- maximum 250 lines of Dart
+
+Do NOT explain your code.
+
+Finish immediately after the closing brace of the Dart code.
+""".strip()

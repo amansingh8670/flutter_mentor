@@ -1,9 +1,5 @@
 """
-llm/chat.py
-
 Centralized chat interface for Ollama.
-
-Every LLM request should go through this file.
 """
 
 import requests
@@ -11,16 +7,16 @@ import requests
 from scripts.config import (
     CHAT_MODEL,
     OLLAMA_BASE_URL,
+    CHAT_URL,
 )
 
+CHAT_URL = CHAT_URL
 
 # ==========================================================
-# ENDPOINT
+# CONFIG
 # ==========================================================
 
-CHAT_URL = (
-    f"{OLLAMA_BASE_URL}/api/generate"
-)
+REQUEST_TIMEOUT = 1800  # 30 minutes
 
 
 # ==========================================================
@@ -32,22 +28,19 @@ def generate(
     system: str | None = None,
     temperature: float = 0.2,
 ) -> str:
-    """
-    Generate a response from the configured chat model.
 
-    Args:
-        prompt:
-            User prompt.
+    approx_tokens = len(prompt) // 4
 
-        system:
-            Optional system prompt.
-
-        temperature:
-            Sampling temperature.
-
-    Returns:
-            Model response.
-    """
+    print()
+    print("=" * 80)
+    print("LLM REQUEST")
+    print("=" * 80)
+    print(f"Model          : {CHAT_MODEL}")
+    print(f"Prompt chars   : {len(prompt):,}")
+    print(f"Approx tokens  : {approx_tokens:,}")
+    print(f"Context        : 8192")
+    print(f"Max Output     : 768")
+    print("=" * 80)
 
     payload = {
 
@@ -55,72 +48,61 @@ def generate(
 
         "prompt": prompt,
 
-        "stream": False,
+        "stream": True,
+
+        "keep_alive": "30m",
 
         "options": {
+            "temperature": 0.1,
+            "num_ctx": 8192,
+            "num_predict": 512,
+            "repeat_penalty": 1.05,
+        },
 
-            "temperature": temperature,
-
-            "num_ctx": 32768,
-
-            "num_predict": 4096,
-        }
+        # Stop once model reaches the end marker
+        "stop": [
+            "=========================================================",
+            "END OF RESPONSE",
+        ],
     }
 
     if system:
-
         payload["system"] = system
 
-    response = requests.post(
+    try:
 
-        CHAT_URL,
+        response = requests.post(
+            CHAT_URL,
+            json=payload,
+            timeout=REQUEST_TIMEOUT,
+        )
 
-        json=payload,
+        response.raise_for_status()
 
-        timeout=600,
-    )
+        data = response.json()
 
-    response.raise_for_status()
+        return data.get("response", "").strip()
 
-    return response.json()["response"]
+    except requests.Timeout:
 
+        raise RuntimeError(
+            "\n"
+            "LLM request timed out.\n\n"
+            "Possible reasons:\n"
+            "- Prompt too large\n"
+            "- Model generating excessive output\n"
+            "- Response format encourages long explanations\n\n"
+            "Recommendation:\n"
+            "- Reduce retrieved chunks\n"
+            "- Reduce prompt size\n"
+            "- Limit requested output\n"
+        )
 
-# ==========================================================
-# GENERATE WITH CONTEXT
-# ==========================================================
+    except requests.RequestException as e:
 
-def generate_with_context(
-    context: str,
-    prompt: str,
-    system: str | None = None,
-    temperature: float = 0.2,
-) -> str:
-    """
-    Convenience helper for RAG prompts.
-    """
-
-    final_prompt = f"""
-=========================================================
-PROJECT CONTEXT
-=========================================================
-
-{context}
-
-=========================================================
-REQUEST
-=========================================================
-
-{prompt}
-"""
-
-    return generate(
-
-        prompt=final_prompt,
-
-        system=system,
-
-        temperature=temperature,
-    )
+        raise RuntimeError(
+            f"\nUnable to contact Ollama.\n\n{e}"
+        )
 
 
 # ==========================================================
@@ -128,15 +110,14 @@ REQUEST
 # ==========================================================
 
 def check_chat_model() -> bool:
-    """
-    Verify that the configured chat model is available.
-    """
 
     try:
 
-        generate("Reply with only the word OK.")
+        response = generate(
+            "Reply with exactly one word: OK"
+        )
 
-        return True
+        return response.strip() == "OK"
 
     except Exception:
 
@@ -150,11 +131,15 @@ def check_chat_model() -> bool:
 if __name__ == "__main__":
 
     print("=" * 80)
-    print("CHAT MODEL TEST")
+    print("OLLAMA TEST")
     print("=" * 80)
 
-    response = generate(
-        "What is Flutter?"
-    )
+    print(
 
-    print(response)
+        generate(
+
+            "Explain Flutter in exactly three sentences."
+
+        )
+
+    )

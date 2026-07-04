@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 from scripts.models.retrieval_models import RetrievedChunk
 
 
@@ -10,18 +8,13 @@ from scripts.models.retrieval_models import RetrievedChunk
 def chunk_key(chunk: RetrievedChunk) -> tuple:
 
     return (
-
         chunk.file,
-
         chunk.chunk_name,
-
-        chunk.source,
-
     )
 
 
 # ==========================================================
-# EXTRA BOOSTS
+# BOOST
 # ==========================================================
 
 def calculate_boost(chunk: RetrievedChunk) -> float:
@@ -29,66 +22,81 @@ def calculate_boost(chunk: RetrievedChunk) -> float:
     score = chunk.score
 
     name = chunk.chunk_name.lower()
-
-    document = chunk.document.lower()
+    file = chunk.file.lower()
+    doc = chunk.document.lower()
 
     # ------------------------------------------------------
-    # Flutter reusable widgets
+    # Highly reusable UI
     # ------------------------------------------------------
 
-    if "widget" in document:
-        score += 5
+    reusable = [
+        "widget",
+        "section",
+        "card",
+        "tile",
+        "dialog",
+        "bottomsheet",
+        "item",
+        "button",
+        "banner",
+        "header",
+        "footer",
+    ]
 
-    if name.endswith("page"):
-        score += 4
-
-    if name.endswith("screen"):
-        score += 4
-
-    if name.endswith("section"):
-        score += 5
-
-    if name.endswith("card"):
-        score += 5
-
-    if name.endswith("tile"):
-        score += 5
-
-    if name.endswith("dialog"):
-        score += 5
+    if any(x in name for x in reusable):
+        score += 40
 
     # ------------------------------------------------------
     # Theme
     # ------------------------------------------------------
 
-    if "apptheme" in document:
-        score += 10
+    if "theme" in file:
+        score += 35
 
-    if "appcolors" in document:
-        score += 10
+    if "color" in file:
+        score += 35
 
-    if "themeprovider" in document:
-        score += 10
-
-    if "color" in name:
-        score += 4
-
-    if "theme" in name:
-        score += 4
+    if "provider" in file:
+        score += 20
 
     # ------------------------------------------------------
-    # Flutter documentation
+    # Screens
+    # ------------------------------------------------------
+
+    if "page" in name:
+        score += 12
+
+    if "screen" in name:
+        score += 12
+
+    # ------------------------------------------------------
+    # Flutter docs
     # ------------------------------------------------------
 
     if chunk.source == "flutter_docs":
-        score += 8
+        score += 15
 
     # ------------------------------------------------------
-    # Semantic generally stronger
+    # Semantic slightly preferred
     # ------------------------------------------------------
 
     if chunk.source == "semantic":
-        score += 3
+        score += 5
+
+    # ------------------------------------------------------
+    # Penalize very large chunks
+    # ------------------------------------------------------
+
+    words = len(doc.split())
+
+    if words > 1200:
+        score -= 50
+
+    elif words > 900:
+        score -= 30
+
+    elif words > 700:
+        score -= 15
 
     return score
 
@@ -101,7 +109,7 @@ def rerank_results(
     semantic_chunks: list[RetrievedChunk],
     keyword_chunks: list[RetrievedChunk],
     flutter_doc_chunks: list[RetrievedChunk] | None = None,
-    limit: int = 30,
+    limit: int = 8,
 ) -> list[RetrievedChunk]:
 
     flutter_doc_chunks = flutter_doc_chunks or []
@@ -110,23 +118,15 @@ def rerank_results(
 
     duplicates = 0
 
-    # ------------------------------------------------------
-    # Merge
-    # ------------------------------------------------------
-
     for chunk in (
-
         semantic_chunks
-
         + keyword_chunks
-
         + flutter_doc_chunks
-
     ):
 
-        key = chunk_key(chunk)
-
         chunk.score = calculate_boost(chunk)
+
+        key = chunk_key(chunk)
 
         if key not in merged:
 
@@ -137,63 +137,56 @@ def rerank_results(
         duplicates += 1
 
         if chunk.score > merged[key].score:
-
             merged[key] = chunk
 
-    # ------------------------------------------------------
-    # Sort
-    # ------------------------------------------------------
-
     ranked = sorted(
-
         merged.values(),
-
-        key=lambda x: x.score,
-
+        key=lambda c: c.score,
         reverse=True,
-
     )
 
     # ------------------------------------------------------
-    # Debug
+    # Maximum 1 chunk per file
     # ------------------------------------------------------
 
+    filtered = []
+
+    seen_files = set()
+
+    for chunk in ranked:
+
+        if chunk.file in seen_files:
+            continue
+
+        filtered.append(chunk)
+
+        seen_files.add(chunk.file)
+
+        if len(filtered) >= limit:
+            break
+
     print()
-
     print("=" * 80)
-
     print("RERANK SUMMARY")
-
     print("=" * 80)
 
     print(f"Semantic      : {len(semantic_chunks)}")
-
     print(f"Keyword       : {len(keyword_chunks)}")
-
     print(f"Flutter Docs  : {len(flutter_doc_chunks)}")
-
     print(f"Duplicates    : {duplicates}")
-
-    print(f"Final Chunks  : {min(limit, len(ranked))}")
+    print(f"Final Chunks  : {len(filtered)}")
 
     print()
-
     print("Top Ranked")
-
     print("-" * 80)
 
-    for chunk in ranked[:10]:
+    for chunk in filtered:
 
         print(
-
             f"[{chunk.source}] "
-
             f"{chunk.score:6.1f} | "
-
             f"{chunk.file} | "
-
             f"{chunk.chunk_name}"
-
         )
 
-    return ranked[:limit]
+    return filtered

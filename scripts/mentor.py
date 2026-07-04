@@ -1,6 +1,7 @@
 import json
+import time
 
-from scripts.llm.chat import generate_with_context
+from scripts.llm.chat import generate
 
 from scripts.prompts.prompt_builder import (
     build_prompt,
@@ -9,10 +10,6 @@ from scripts.prompts.prompt_builder import (
 from scripts.retrieval.retrieval import (
     retrieve_context,
     retrieve_multiple_context,
-)
-
-from scripts.retrieval.formatter import (
-    format_chunks,
 )
 
 from scripts.vision.vision import (
@@ -34,21 +31,57 @@ def run_text_mode():
 
     print("\nSearching repository...\n")
 
+    retrieval_start = time.time()
+
     context = retrieve_context(
         question,
         return_string=True,
     )
 
+    print(
+        f"\nRepository context: {len(context):,} characters"
+    )
+
+    print(
+        f"Retrieval completed in "
+        f"{time.time() - retrieval_start:.2f}s"
+    )
+
     prompt = build_prompt(
         question=question,
-        context=context,
+        project_context=context,
     )
+
+    print()
+    print("=" * 80)
+    print("PROMPT")
+    print("=" * 80)
+    print(f"Characters : {len(prompt):,}")
+    print(f"Approx Tokens : {len(prompt)//4:,}")
 
     print("\nThinking...\n")
 
-    answer = chat(prompt)
+    generation_start = time.time()
 
-    print("\n")
+    try:
+
+        answer = generate(prompt)
+
+    except Exception as e:
+
+        print()
+        print("=" * 80)
+        print("ERROR")
+        print("=" * 80)
+        print(e)
+        return
+
+    print(
+        f"\nGeneration completed in "
+        f"{time.time() - generation_start:.2f}s"
+    )
+
+    print()
     print("=" * 80)
     print("ANSWER")
     print("=" * 80)
@@ -61,14 +94,20 @@ def run_text_mode():
 
 def run_image_mode():
 
-    image_path = input(
-        "\nImage path: "
-    ).strip()
+    image_path = input("\nImage path: ").strip()
 
     print("\nAnalyzing screenshot...\n")
 
+    vision_start = time.time()
+
     vision = analyze_image(image_path)
 
+    print(
+        f"Vision completed in "
+        f"{time.time() - vision_start:.2f}s"
+    )
+
+    print()
     print("=" * 80)
     print("VISION")
     print("=" * 80)
@@ -77,12 +116,16 @@ def run_image_mode():
         json.dumps(
             vision,
             indent=2,
-            default=lambda o: getattr(o, "__dict__", str(o))
+            default=lambda o: getattr(
+                o,
+                "__dict__",
+                str(o),
+            ),
         )
     )
 
     queries = build_queries_from_vision(
-        vision,
+        vision
     )
 
     print()
@@ -91,17 +134,24 @@ def run_image_mode():
     print("=" * 80)
 
     for query in queries:
+
         print("-", query)
 
     print("\nSearching repository...\n")
 
+    retrieval_start = time.time()
+
     context = retrieve_multiple_context(
-        queries,
+        queries
     )
 
-    context = format_chunks(
-        context=context,
-        vision=vision,
+    print(
+        f"\nRepository context: {len(context):,} characters"
+    )
+
+    print(
+        f"Retrieval completed in "
+        f"{time.time() - retrieval_start:.2f}s"
     )
 
     question = """
@@ -109,32 +159,51 @@ Implement the uploaded Flutter screen.
 
 The screenshot analysis is the source of truth.
 
-Reuse every existing widget possible.
-
-Reuse AppColors.
-
-Reuse AppTheme.
-
-Reuse ThemeProvider.
-
-Follow existing project architecture.
-
-Create new widgets only if no reusable widget exists.
+Reuse existing widgets, theme, colors,
+typography, navigation and architecture whenever possible.
 
 Generate complete production-ready Flutter code.
+
+Always return a compilable Flutter screen,
+even if some reusable widgets are unavailable.
 """
 
     prompt = build_prompt(
         question=question,
-        context=context,
+        project_context=context,
         vision=vision,
     )
 
+    print()
+    print("=" * 80)
+    print("PROMPT")
+    print("=" * 80)
+    print(f"Characters : {len(prompt):,}")
+    print(f"Approx Tokens : {len(prompt)//4:,}")
+
     print("\nThinking...\n")
 
-    answer = chat(prompt)
+    generation_start = time.time()
 
-    print("\n")
+    try:
+
+        answer = generate(prompt)
+
+    except Exception as e:
+
+        print()
+        print("=" * 80)
+        print("ERROR")
+        print("=" * 80)
+        print(e)
+        return
+
+    print(
+        f"\nGeneration completed in "
+        f"{time.time() - generation_start:.2f}s"
+    )
+
+    print()
     print("=" * 80)
     print("ANSWER")
     print("=" * 80)
@@ -156,9 +225,10 @@ def main():
         ).strip().lower()
 
         if mode == "exit":
+
             break
 
-        if mode == "text":
+        elif mode == "text":
 
             run_text_mode()
 
@@ -172,4 +242,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()

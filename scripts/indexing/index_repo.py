@@ -8,7 +8,6 @@ from scripts.config import (
     CHROMA_PATH,
     REPO_COLLECTION,
     REPO_PATH,
-    CHUNK_SIZE,
 )
 
 from scripts.llm.embeddings import get_embedding
@@ -18,9 +17,7 @@ from scripts.llm.embeddings import get_embedding
 # CHROMA
 # ==========================================================
 
-client = chromadb.PersistentClient(
-    path=CHROMA_PATH
-)
+client = chromadb.PersistentClient(path=CHROMA_PATH)
 
 try:
     client.delete_collection(REPO_COLLECTION)
@@ -28,43 +25,61 @@ try:
 except Exception:
     pass
 
-collection = client.create_collection(
-    REPO_COLLECTION
-)
+collection = client.create_collection(REPO_COLLECTION)
 
 
 # ==========================================================
-# CLASS / PROVIDER EXTRACTION
+# DECLARATIONS
 # ==========================================================
 
 DECLARATION_PATTERN = re.compile(
-    r"^(class|enum|extension)\s+(\w+)|^final\s+(\w+)",
-    re.MULTILINE
+    r"^(class|enum|extension|mixin)\s+(\w+)|^final\s+(\w+)",
+    re.MULTILINE,
 )
 
 
 # ==========================================================
-# SPLIT LARGE CHUNKS
+# UTILITIES
 # ==========================================================
 
-def split_large_chunk(text):
+MAX_CHUNK_SIZE = 3500
 
-    chunks = []
 
-    for i in range(0, len(text), CHUNK_SIZE):
+def split_if_needed(text: str) -> list[str]:
+    """
+    Only split extremely large chunks.
 
-        chunks.append(
-            text[i:i + CHUNK_SIZE]
-        )
+    Most Flutter classes stay intact.
+    """
 
-    return chunks
+    if len(text) <= MAX_CHUNK_SIZE:
+        return [text]
+
+    parts = []
+
+    start = 0
+
+    while start < len(text):
+
+        end = min(start + MAX_CHUNK_SIZE, len(text))
+
+        newline = text.rfind("\n", start, end)
+
+        if newline > start:
+            end = newline
+
+        parts.append(text[start:end])
+
+        start = end
+
+    return parts
 
 
 # ==========================================================
-# EXTRACT SEMANTIC CHUNKS
+# SEMANTIC EXTRACTION
 # ==========================================================
 
-def extract_semantic_chunks(content):
+def extract_semantic_chunks(content: str):
 
     matches = list(
         DECLARATION_PATTERN.finditer(content)
@@ -76,23 +91,23 @@ def extract_semantic_chunks(content):
             {
                 "name": "file",
                 "type": "file",
-                "content": content
+                "content": content,
             }
         ]
 
     chunks = []
 
-    for index, match in enumerate(matches):
+    for i, match in enumerate(matches):
 
         start = match.start()
 
         end = (
-            matches[index + 1].start()
-            if index < len(matches) - 1
+            matches[i + 1].start()
+            if i < len(matches) - 1
             else len(content)
         )
 
-        chunk_content = content[start:end].strip()
+        code = content[start:end].strip()
 
         if match.group(1):
 
@@ -108,7 +123,7 @@ def extract_semantic_chunks(content):
             {
                 "name": chunk_name,
                 "type": chunk_type,
-                "content": chunk_content
+                "content": code,
             }
         )
 
@@ -116,16 +131,16 @@ def extract_semantic_chunks(content):
 
 
 # ==========================================================
-# INDEX SINGLE FILE
+# INDEX FILE
 # ==========================================================
 
-def index_file(path):
+def index_file(path: str):
 
     filename = os.path.basename(path)
 
     relative_path = os.path.relpath(
         path,
-        REPO_PATH
+        REPO_PATH,
     )
 
     print(f"\n📄 {relative_path}")
@@ -133,28 +148,22 @@ def index_file(path):
     with open(
         path,
         "r",
-        encoding="utf-8"
-    ) as file:
+        encoding="utf-8",
+    ) as f:
 
-        content = file.read()
+        content = f.read()
 
-    semantic_chunks = extract_semantic_chunks(
-        content
-    )
+    semantic_chunks = extract_semantic_chunks(content)
 
-    print(
-        f"   Semantic Chunks : {len(semantic_chunks)}"
-    )
+    chunk_count = 0
 
     for chunk in semantic_chunks:
 
-        sub_chunks = split_large_chunk(
-            chunk["content"]
-        )
+        for index, piece in enumerate(
+            split_if_needed(chunk["content"])
+        ):
 
-        for index, code in enumerate(sub_chunks):
-
-            enriched = f"""
+            embedding_text = f"""
 FILE: {filename}
 
 PATH: {relative_path}
@@ -163,28 +172,20 @@ TYPE: {chunk["type"]}
 
 NAME: {chunk["name"]}
 
-CODE:
-
-{code}
-"""
+{piece}
+""".strip()
 
             embedding = get_embedding(
-                enriched
+                embedding_text
             )
 
             collection.add(
 
-                ids=[
-                    str(uuid.uuid4())
-                ],
+                ids=[str(uuid.uuid4())],
 
-                documents=[
-                    enriched
-                ],
+                documents=[embedding_text],
 
-                embeddings=[
-                    embedding
-                ],
+                embeddings=[embedding],
 
                 metadatas=[
                     {
@@ -193,13 +194,19 @@ CODE:
                         "path": relative_path,
                         "chunk_name": chunk["name"],
                         "chunk_type": chunk["type"],
-                        "chunk_index": index
+                        "chunk_index": index,
                     }
-                ]
+                ],
             )
 
+            chunk_count += 1
+
     print(
-        f"   Indexed {len(semantic_chunks)} semantic chunks"
+        f"   Semantic Chunks : {len(semantic_chunks)}"
+    )
+
+    print(
+        f"   Indexed Pieces  : {chunk_count}"
     )
 
 
@@ -218,11 +225,12 @@ def index_repository():
     for root, dirs, files in os.walk(REPO_PATH):
 
         dirs[:] = [
-            d for d in dirs
+            d
+            for d in dirs
             if d not in (
+                ".git",
                 ".dart_tool",
                 "build",
-                ".git"
             )
         ]
 
@@ -231,24 +239,19 @@ def index_repository():
             if not file.endswith(".dart"):
                 continue
 
-            path = os.path.join(
-                root,
-                file
+            index_file(
+                os.path.join(root, file)
             )
-
-            index_file(path)
 
             total_files += 1
 
     print()
     print("=" * 80)
-    print("INDEXING COMPLETE")
+    print("INDEX COMPLETE")
     print("=" * 80)
 
     print(f"Files Indexed : {total_files}")
-    print(
-        f"Total Chunks  : {collection.count()}"
-    )
+    print(f"Total Chunks  : {collection.count()}")
 
 
 # ==========================================================

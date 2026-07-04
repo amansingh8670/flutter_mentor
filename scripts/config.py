@@ -95,7 +95,7 @@ EMBED_BATCH_SIZE = 32
 # CHUNKING
 # ==========================================================
 
-CHUNK_SIZE = 1200
+CHUNK_SIZE = 700
 
 CHUNK_OVERLAP = 200
 
