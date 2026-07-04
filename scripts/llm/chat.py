@@ -8,6 +8,7 @@ import requests
 from scripts.config import (
     CHAT_MODEL,
     CHAT_URL,
+    LLM_MAX_OUTPUT,
 )
 
 # ==========================================================
@@ -18,7 +19,7 @@ REQUEST_TIMEOUT = 1800
 
 CONTEXT_SIZE = 8192
 
-MAX_OUTPUT_TOKENS = 384
+MAX_OUTPUT_TOKENS = LLM_MAX_OUTPUT
 
 
 # ==========================================================
