@@ -2,21 +2,23 @@
 Centralized chat interface for Ollama.
 """
 
+import json
 import requests
 
 from scripts.config import (
     CHAT_MODEL,
-    OLLAMA_BASE_URL,
     CHAT_URL,
 )
-
-CHAT_URL = CHAT_URL
 
 # ==========================================================
 # CONFIG
 # ==========================================================
 
-REQUEST_TIMEOUT = 1800  # 30 minutes
+REQUEST_TIMEOUT = 1800
+
+CONTEXT_SIZE = 8192
+
+MAX_OUTPUT_TOKENS = 384
 
 
 # ==========================================================
@@ -26,7 +28,7 @@ REQUEST_TIMEOUT = 1800  # 30 minutes
 def generate(
     prompt: str,
     system: str | None = None,
-    temperature: float = 0.2,
+    temperature: float = 0.1,
 ) -> str:
 
     approx_tokens = len(prompt) // 4
@@ -38,30 +40,24 @@ def generate(
     print(f"Model          : {CHAT_MODEL}")
     print(f"Prompt chars   : {len(prompt):,}")
     print(f"Approx tokens  : {approx_tokens:,}")
-    print(f"Context        : 8192")
-    print(f"Max Output     : 768")
+    print(f"Context        : {CONTEXT_SIZE}")
+    print(f"Max Output     : {MAX_OUTPUT_TOKENS}")
     print("=" * 80)
 
     payload = {
-
         "model": CHAT_MODEL,
-
         "prompt": prompt,
-
-        "stream": True,
-
+        "stream": False,
         "keep_alive": "30m",
-
         "options": {
-            "temperature": 0.1,
-            "num_ctx": 8192,
-            "num_predict": 512,
+            "temperature": temperature,
+            "num_ctx": CONTEXT_SIZE,
+            "num_predict": MAX_OUTPUT_TOKENS,
+            "top_p": 0.9,
+            "top_k": 40,
             "repeat_penalty": 1.05,
         },
-
-        # Stop once model reaches the end marker
         "stop": [
-            "=========================================================",
             "END OF RESPONSE",
         ],
     }
@@ -74,28 +70,50 @@ def generate(
         response = requests.post(
             CHAT_URL,
             json=payload,
+            stream=True,
             timeout=REQUEST_TIMEOUT,
         )
 
         response.raise_for_status()
 
-        data = response.json()
+        parts = []
 
-        return data.get("response", "").strip()
+        print("\nGenerating...\n")
+
+        for line in response.iter_lines():
+
+            if not line:
+                continue
+
+            obj = json.loads(line.decode())
+            
+            print("INSIDE", obj)
+
+            if "response" in obj:
+
+                token = obj["response"]
+
+                print(token, end="", flush=True)
+
+                parts.append(token)
+
+            if obj.get("done", False):
+                break
+
+        print()
+        print("="*80)
+        print("GENERATION")
+        print("="*80)
+
+        print("Characters :", len("".join(parts)))
+        print("Tokens :", len(parts))
+        return "".join(parts).strip()
 
     except requests.Timeout:
 
         raise RuntimeError(
-            "\n"
-            "LLM request timed out.\n\n"
-            "Possible reasons:\n"
-            "- Prompt too large\n"
-            "- Model generating excessive output\n"
-            "- Response format encourages long explanations\n\n"
-            "Recommendation:\n"
-            "- Reduce retrieved chunks\n"
-            "- Reduce prompt size\n"
-            "- Limit requested output\n"
+            "\nLLM request timed out.\n"
+            "Try reducing the prompt size or retrieved context."
         )
 
     except requests.RequestException as e:
@@ -113,11 +131,11 @@ def check_chat_model() -> bool:
 
     try:
 
-        response = generate(
-            "Reply with exactly one word: OK"
+        result = generate(
+            "Reply with exactly: OK"
         )
 
-        return response.strip() == "OK"
+        return result.strip() == "OK"
 
     except Exception:
 
@@ -130,16 +148,10 @@ def check_chat_model() -> bool:
 
 if __name__ == "__main__":
 
-    print("=" * 80)
-    print("OLLAMA TEST")
-    print("=" * 80)
+    print()
 
     print(
-
         generate(
-
-            "Explain Flutter in exactly three sentences."
-
+            "Write exactly three sentences explaining Flutter."
         )
-
     )

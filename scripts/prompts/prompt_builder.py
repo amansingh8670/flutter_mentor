@@ -55,7 +55,7 @@ Actions
         sections.append(f"""
 ## FLUTTER DOCS
 
-Use ONLY if newer Flutter APIs are required.
+Use ONLY if new Flutter APIs or widgets are required.
 
 {flutter_context}
 """.strip())

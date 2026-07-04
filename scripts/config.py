@@ -55,11 +55,33 @@ EMBED_URL = f"{OLLAMA_BASE_URL}/api/embeddings"
 # MODELS
 # ==========================================================
 
-CHAT_MODEL = "qwen2.5-coder:14b"
+# Planner model
+PLANNER_MODEL = "deepseek-coder-v2:16b"
+
+# Generator model
+GENERATOR_MODEL = "deepseek-coder-v2:16b"
+
+# Backward compatibility
+CHAT_MODEL = GENERATOR_MODEL
 
 VISION_MODEL = "qwen2.5vl:3b"
 
 EMBED_MODEL = "nomic-embed-text"
+
+
+# ==========================================================
+# GENERATION
+# ==========================================================
+
+LLM_CONTEXT_SIZE = 8192
+
+LLM_MAX_OUTPUT = 768
+
+LLM_TEMPERATURE = 0.1
+
+REQUEST_TIMEOUT = 1800
+
+KEEP_ALIVE = "30m"
 
 
 # ==========================================================
@@ -81,7 +103,8 @@ KEYWORD_RESULTS = 2
 
 MULTI_QUERY_RESULTS = 2
 
-MAX_CONTEXT_CHUNKS = 20
+# Final number of chunks after reranking
+MAX_CONTEXT_CHUNKS = 8
 
 
 # ==========================================================
@@ -101,6 +124,14 @@ CHUNK_OVERLAP = 200
 
 
 # ==========================================================
+# PLANNER
+# ==========================================================
+
+# Maximum files planner may request
+MAX_IMPLEMENTATION_FILES = 12
+
+
+# ==========================================================
 # DEBUG
 # ==========================================================
 
@@ -113,3 +144,5 @@ PRINT_RETRIEVAL = True
 PRINT_PROMPT = False
 
 PRINT_CONTEXT = True
+
+PRINT_PLAN = True
