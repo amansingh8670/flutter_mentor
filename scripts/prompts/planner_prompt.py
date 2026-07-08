@@ -1,5 +1,5 @@
 # ==========================================================
-# PLANNER PROMPT
+# PLANNER PROMPT (Gemma Optimized)
 # ==========================================================
 
 from scripts.models.vision_schema import VisionAnalysis
@@ -17,34 +17,24 @@ def build_planner_prompt(
     if vision:
 
         vision_section = f"""
-========================================================================
-SCREEN ANALYSIS
-========================================================================
+## Screen Analysis
 
-The uploaded screenshot is the SINGLE SOURCE OF TRUTH.
-
-Screen
-------
+Screen:
 {vision.screen}
 
-Theme
------
+Theme:
 {vision.theme}
 
-Layout
-------
+Layout:
 {vision.layout}
 
-Visible Widgets
----------------
+Visible Widgets:
 {vision.widgets}
 
-Visible Text
-------------
+Visible Text:
 {vision.texts}
 
-User Actions
-------------
+User Actions:
 {vision.actions}
 """
 
@@ -53,127 +43,92 @@ User Actions
     if flutter_context.strip():
 
         flutter_section = f"""
-========================================================================
-FLUTTER DOCUMENTATION
-========================================================================
+## Flutter Documentation
 
-Use only if newer Flutter APIs are required.
+Use only when repository context is incomplete or newer Flutter APIs are required.
 
 {flutter_context}
 """
 
     return f"""
-You are a Staff Flutter Architect.
+You are an expert Flutter architect.
 
-Your ONLY responsibility is planning.
+Your task is to create an implementation plan for another model that will generate the Flutter code.
 
-DO NOT generate Flutter code.
+Return exactly one valid JSON object.
 
-DO NOT generate Dart code.
+Do not generate Flutter code.
+Do not generate Dart code.
+Do not explain your reasoning.
+Do not output markdown.
 
-DO NOT write widgets.
+--------------------------------------------------
 
-DO NOT explain your reasoning.
-
-DO NOT output markdown.
-
-Return ONLY valid JSON.
-
-========================================================================
-OBJECTIVE
-========================================================================
-
-Analyze:
+## Priority
 
 1. Screenshot
 2. User request
 3. Existing project
 4. Flutter documentation
 
-Then create a complete implementation plan for another LLM
-that will generate the Flutter code.
+If there is any conflict, always follow the screenshot.
 
-========================================================================
-PRIORITY
-========================================================================
+--------------------------------------------------
 
-1. Uploaded Screenshot
-2. User Request
-3. Existing Project Code
-4. Flutter Documentation
+## Project Rules
 
-If retrieved code differs from the screenshot,
-the screenshot ALWAYS wins.
-
-========================================================================
-PROJECT RULES
-========================================================================
-
-Reuse existing:
+Prefer reusing existing:
 
 - AppTheme
 - AppColors
 - ThemeProvider
-- Existing reusable widgets
-- Existing sections
-- Existing components
-- Existing navigation
+- reusable widgets
+- reusable sections
+- navigation
+- shared components
 
-Never rename files.
+Prefer modifying existing files instead of creating new ones.
 
-Never redesign architecture.
+Only create new widgets when they are clearly required.
 
-Only recommend new widgets if absolutely necessary.
+Do not redesign the project architecture.
 
-Do not invent project-wide utilities.
-
-========================================================================
-SCREEN INFORMATION
-========================================================================
+--------------------------------------------------
 
 {vision_section}
 
-========================================================================
-USER REQUEST
-========================================================================
+--------------------------------------------------
+
+## User Request
 
 {question}
 
-========================================================================
-PROJECT CONTEXT
-========================================================================
+--------------------------------------------------
+
+## Existing Project
 
 {project_context}
 
 {flutter_section}
 
-========================================================================
-YOUR TASK
-========================================================================
+--------------------------------------------------
+
+## Your Task
 
 Determine:
 
-• What this screen is.
+- what screen should be implemented
+- which existing widgets should be reused
+- which existing files should be modified
+- which new files (if any) must be created
+- widget hierarchy
+- implementation order
 
-• Which widgets should be reused.
+Keep the plan concise and implementation-focused.
 
-• Which files should be modified.
+--------------------------------------------------
 
-• Which files should be created.
-
-• Widget hierarchy.
-
-• Overall implementation steps.
-
-• Missing reusable components.
-
-• Architecture notes.
-
-• Any assumptions required because of incomplete context.
-
-========================================================================
-OUTPUT JSON SCHEMA
-========================================================================
+## JSON Schema
 
 {{
   "screen_summary": "",
@@ -190,57 +145,29 @@ OUTPUT JSON SCHEMA
     ""
   ],
 
-  "new_files": [
+  "create_files": [
     ""
   ],
 
-  "layout": {{
-    "root": "Scaffold",
-    "body": [
-      {{
-        "widget": "",
-        "children": [
-          {{
-            "widget": "",
-            "children": []
-          }}
-        ]
-      }}
-    ]
+  "widget_tree": {{
+    "widget": "",
+    "children": []
   }},
-
-  "architecture_notes": [
-    ""
-  ],
-
-  "missing_components": [
-    ""
-  ],
 
   "implementation_steps": [
     ""
   ],
 
-  "assumptions": [
-    ""
-  ]
+  "confidence": "high"
 }}
 
-========================================================================
-RULES
-========================================================================
+--------------------------------------------------
 
-Return ONLY valid JSON.
+Rules
 
-No markdown.
-
-No explanations.
-
-No Dart code.
-
-No Flutter code.
-
-No comments.
-
-No additional text before or after the JSON.
+- Return ONLY valid JSON.
+- No markdown.
+- No explanations.
+- No comments.
+- No text before or after the JSON.
 """.strip()

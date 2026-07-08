@@ -1,25 +1,18 @@
 """
-Centralized chat interface for Ollama.
+Centralized chat interface for Ollama (/api/generate).
 """
 
-import json
 import requests
 
 from scripts.config import (
     CHAT_MODEL,
     CHAT_URL,
+    LLM_CONTEXT_SIZE,
     LLM_MAX_OUTPUT,
+    LLM_TEMPERATURE,
+    REQUEST_TIMEOUT,
+    KEEP_ALIVE,
 )
-
-# ==========================================================
-# CONFIG
-# ==========================================================
-
-REQUEST_TIMEOUT = 1800
-
-CONTEXT_SIZE = 8192
-
-MAX_OUTPUT_TOKENS = LLM_MAX_OUTPUT
 
 
 # ==========================================================
@@ -29,7 +22,7 @@ MAX_OUTPUT_TOKENS = LLM_MAX_OUTPUT
 def generate(
     prompt: str,
     system: str | None = None,
-    temperature: float = 0.1,
+    temperature: float = LLM_TEMPERATURE,
 ) -> str:
 
     approx_tokens = len(prompt) // 4
@@ -41,19 +34,19 @@ def generate(
     print(f"Model          : {CHAT_MODEL}")
     print(f"Prompt chars   : {len(prompt):,}")
     print(f"Approx tokens  : {approx_tokens:,}")
-    print(f"Context        : {CONTEXT_SIZE}")
-    print(f"Max Output     : {MAX_OUTPUT_TOKENS}")
+    print(f"Context        : {LLM_CONTEXT_SIZE}")
+    print(f"Max Output     : {LLM_MAX_OUTPUT}")
     print("=" * 80)
 
     payload = {
         "model": CHAT_MODEL,
         "prompt": prompt,
         "stream": False,
-        "keep_alive": "30m",
+        "keep_alive": KEEP_ALIVE,
         "options": {
             "temperature": temperature,
-            "num_ctx": CONTEXT_SIZE,
-            "num_predict": MAX_OUTPUT_TOKENS,
+            "num_ctx": LLM_CONTEXT_SIZE,
+            "num_predict": LLM_MAX_OUTPUT,
             "top_p": 0.9,
             "top_k": 40,
             "repeat_penalty": 1.05,
@@ -68,59 +61,45 @@ def generate(
 
     try:
 
+        print("\nGenerating...\n")
+
         response = requests.post(
             CHAT_URL,
             json=payload,
-            stream=True,
             timeout=REQUEST_TIMEOUT,
         )
 
         response.raise_for_status()
 
-        parts = []
+        data = response.json()
 
-        print("\nGenerating...\n")
+        output = data.get("response", "").strip()
 
-        for line in response.iter_lines():
-
-            if not line:
-                continue
-
-            obj = json.loads(line.decode())
-            
-            print("INSIDE", obj)
-
-            if "response" in obj:
-
-                token = obj["response"]
-
-                print(token, end="", flush=True)
-
-                parts.append(token)
-
-            if obj.get("done", False):
-                break
-
-        print()
-        print("="*80)
+        print("=" * 80)
         print("GENERATION")
-        print("="*80)
+        print("=" * 80)
+        print("Characters :", len(output))
+        print("Approx Tokens :", len(output) // 4)
 
-        print("Characters :", len("".join(parts)))
-        print("Tokens :", len(parts))
-        return "".join(parts).strip()
+        if not output:
+            raise RuntimeError(
+                f"Model '{CHAT_MODEL}' returned an empty response.\n\n"
+                f"Raw response:\n{data}"
+            )
+
+        return output
 
     except requests.Timeout:
 
         raise RuntimeError(
-            "\nLLM request timed out.\n"
+            "LLM request timed out.\n"
             "Try reducing the prompt size or retrieved context."
         )
 
     except requests.RequestException as e:
 
         raise RuntimeError(
-            f"\nUnable to contact Ollama.\n\n{e}"
+            f"Unable to contact Ollama.\n\n{e}"
         )
 
 
@@ -132,11 +111,8 @@ def check_chat_model() -> bool:
 
     try:
 
-        result = generate(
-            "Reply with exactly: OK"
-        )
-
-        return result.strip() == "OK"
+        result = generate("Reply with exactly: OK")
+        return result == "OK"
 
     except Exception:
 
@@ -148,8 +124,6 @@ def check_chat_model() -> bool:
 # ==========================================================
 
 if __name__ == "__main__":
-
-    print()
 
     print(
         generate(

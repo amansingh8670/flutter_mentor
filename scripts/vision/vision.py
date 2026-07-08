@@ -1,14 +1,14 @@
 import base64
 import json
 import re
+
 import requests
 
 from scripts.config import (
-    OLLAMA_BASE_URL,
-    VISION_MODEL,
     CHAT_URL,
+    REQUEST_TIMEOUT,
+    VISION_MODEL,
 )
-
 from scripts.models.vision_schema import VisionAnalysis
 
 
@@ -19,9 +19,9 @@ from scripts.models.vision_schema import VisionAnalysis
 VISION_PROMPT = """
 You are a Senior Flutter UI Architect.
 
-Your task is NOT to generate Flutter code.
+Analyze the screenshot for Flutter code retrieval.
 
-Your task is to analyse this screenshot so another AI can search an existing Flutter repository for reusable widgets.
+Do NOT generate Flutter code.
 
 Return ONLY valid JSON.
 
@@ -39,20 +39,17 @@ Schema:
 
 Rules
 
-- Keep screen name short.
-- Theme must be "light" or "dark".
-- Prefer reusable UI sections instead of tiny details.
-- Widget names should be semantic.
-- Ignore status bar.
-- Ignore device frame.
-- Ignore keyboard.
-- Ignore animations.
-- Ignore hidden UI.
-- Ignore placeholder values.
-- Ignore email addresses.
-- Ignore passwords.
-- Return semantic colors only.
-- Return ONLY JSON.
+- Theme must be "light" or "dark"
+- Ignore status bar
+- Ignore device frame
+- Ignore keyboard
+- Ignore animations
+- Ignore placeholder values
+- Ignore passwords
+- Ignore email addresses
+- Prefer reusable UI sections
+- Return semantic widget names
+- Return ONLY JSON
 """
 
 
@@ -61,11 +58,9 @@ Rules
 # ==========================================================
 
 def encode_image(image_path: str) -> str:
-
     with open(image_path, "rb") as image:
-        return base64.b64encode(
-            image.read()
-        ).decode()
+        return base64.b64encode(image.read()).decode()
+
 
 
 def clean_json(response: str) -> str:
@@ -91,11 +86,18 @@ def clean_json(response: str) -> str:
         "",
     )
 
+    # Remove JS-style comments
+    response = re.sub(
+        r"//.*?$",
+        "",
+        response,
+        flags=re.MULTILINE,
+    )
+
     return response.strip()
 
 
 def normalize(data: dict) -> VisionAnalysis:
-
     return VisionAnalysis(
         screen=data.get("screen", ""),
         theme=data.get("theme", "").lower(),
@@ -111,9 +113,7 @@ def normalize(data: dict) -> VisionAnalysis:
 # MAIN
 # ==========================================================
 
-def analyze_image(
-    image_path: str,
-) -> VisionAnalysis:
+def analyze_image(image_path: str) -> VisionAnalysis:
 
     image = encode_image(image_path)
 
@@ -125,23 +125,40 @@ def analyze_image(
             "images": [image],
             "stream": False,
         },
+        timeout=REQUEST_TIMEOUT,
     )
 
     response.raise_for_status()
 
+    data = response.json()
+
     output = clean_json(
-        response.json()["response"]
+        data.get("response", "")
     )
 
+    print("=" * 80)
+    print("RAW MODEL OUTPUT")
+    print("=" * 80)
+    print(repr(output))
+    print("=" * 80)
+
+    if not output:
+        raise RuntimeError(
+            f"Vision model '{VISION_MODEL}' returned an empty response.\n\n"
+            f"Raw response:\n{json.dumps(data, indent=2)}"
+        )
+
     try:
-
         parsed = json.loads(output)
-
         return normalize(parsed)
 
-    except Exception:
+    except json.JSONDecodeError as e:
 
         print("\nInvalid Vision JSON\n")
         print(output)
 
-        raise
+        raise RuntimeError(
+            f"Vision model returned invalid JSON.\n\n"
+            f"Error: {e}\n\n"
+            f"Output:\n{output}"
+        ) from e

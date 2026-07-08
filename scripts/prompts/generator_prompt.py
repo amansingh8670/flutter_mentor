@@ -1,7 +1,3 @@
-# ==========================================================
-# GENERATOR PROMPT
-# ==========================================================
-
 from scripts.models.vision_schema import VisionAnalysis
 
 
@@ -11,19 +7,12 @@ def build_generator_prompt(
     flutter_context: str = "",
     vision: VisionAnalysis | None = None,
 ) -> str:
-    """
-    Build the code generation prompt.
-
-    The planner has already decided the implementation.
-    This prompt focuses only on generating Flutter code.
-    """
 
     vision_section = ""
 
     if vision:
-
         vision_section = f"""
-SCREEN ANALYSIS
+## Screen Analysis
 
 Screen:
 {vision.screen}
@@ -47,83 +36,66 @@ Actions:
     flutter_section = ""
 
     if flutter_context.strip():
-
         flutter_section = f"""
-FLUTTER DOCUMENTATION
+## Flutter Documentation
 
 {flutter_context}
 """
 
     return f"""
-You are a senior Flutter engineer.
+You are an expert Flutter engineer.
 
-Generate Flutter code ONLY.
+Your task is to implement the approved screen.
 
-Do NOT explain.
+Do not explain your decisions.
+Do not redesign the UI.
+Follow the implementation plan exactly.
 
-Do NOT justify decisions.
+---
 
-Do NOT redesign the screen.
-
-The implementation plan has already been approved.
-
-Follow it exactly.
-
-==================================================
-IMPLEMENTATION PLAN
-==================================================
+## Implementation Plan
 
 {implementation_plan}
 
 {vision_section}
 
-==================================================
-PROJECT CONTEXT
-==================================================
+---
 
-Reuse existing widgets whenever possible.
+## Existing Project
 
-If a reusable widget cannot be used,
-replace it with a standard Flutter widget.
+Reuse existing widgets, themes and components whenever possible.
+
+If an existing widget is unsuitable or incomplete, implement the UI using standard Flutter widgets.
 
 {project_context}
 
 {flutter_section}
 
-==================================================
-REQUIREMENTS
-==================================================
+---
 
-Generate complete, compilable Flutter code.
+## Requirements
 
-Always include:
+Generate production-ready Flutter code.
 
-- imports
-- StatelessWidget or StatefulWidget
-- build()
-- helper widgets
-- helper methods
-- placeholder data where necessary
+Every generated file must:
+- compile
+- include imports
+- include all required widgets
+- include helper methods if needed
+- avoid TODOs and pseudocode
+- contain no omitted implementations
 
+If repository code is incomplete, complete it using Flutter best practices.
 
-Never leave empty methods.
+---
 
-Never output pseudocode.
+## Output Format
 
-Never omit widget implementations.
+Return markdown only.
 
-If repository code is incomplete,
-generate a working Flutter implementation referring to the flutter docs.
-
-==================================================
-OUTPUT
-==================================================
-
-Return ONLY markdown.
-
-For every file use this format.
+For every generated file use:
 
 ### File: lib/path/to/file.dart
 
 ```dart
-// complete Dart code
+// complete code

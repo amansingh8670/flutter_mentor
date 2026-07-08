@@ -32,7 +32,7 @@ CHROMA_PATH = os.path.join(
     "chroma"
 )
 
-REPO_PATH = "/Users/amansingh/Desktop/Practice/chef_ai_mobile/lib"
+REPO_PATH = "/Users/amansingh/Desktop/Practice/chefai_flutter/lib"
 
 FLUTTER_DOCS_PATH = os.path.join(
     DATA_DIR,
@@ -56,10 +56,10 @@ EMBED_URL = f"{OLLAMA_BASE_URL}/api/embeddings"
 # ==========================================================
 
 # Planner model
-PLANNER_MODEL = "deepseek-coder-v2:16b"
+PLANNER_MODEL = "gemma3:12b"
 
 # Generator model
-GENERATOR_MODEL = "deepseek-coder-v2:16b"
+GENERATOR_MODEL = "gemma3:12b"
 
 # Backward compatibility
 CHAT_MODEL = GENERATOR_MODEL
@@ -73,13 +73,13 @@ EMBED_MODEL = "nomic-embed-text"
 # GENERATION
 # ==========================================================
 
-LLM_CONTEXT_SIZE = 8192
+LLM_CONTEXT_SIZE = 8912
 
-LLM_MAX_OUTPUT = 1152
+LLM_MAX_OUTPUT = 768
 
 LLM_TEMPERATURE = 0.1
 
-REQUEST_TIMEOUT = 1800
+REQUEST_TIMEOUT = 7200
 
 KEEP_ALIVE = "30m"
 
@@ -104,7 +104,7 @@ KEYWORD_RESULTS = 2
 MULTI_QUERY_RESULTS = 2
 
 # Final number of chunks after reranking
-MAX_CONTEXT_CHUNKS = 8
+MAX_CONTEXT_CHUNKS = 3
 
 
 # ==========================================================
@@ -118,7 +118,7 @@ EMBED_BATCH_SIZE = 32
 # CHUNKING
 # ==========================================================
 
-CHUNK_SIZE = 700
+CHUNK_SIZE = 800
 
 CHUNK_OVERLAP = 200
 

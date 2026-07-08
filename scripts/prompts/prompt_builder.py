@@ -1,5 +1,5 @@
 # ==========================================================
-# PROMPT BUILDER
+# PROMPT BUILDER (Gemma Optimized)
 # ==========================================================
 
 from scripts.models.vision_schema import VisionAnalysis
@@ -20,31 +20,31 @@ def build_prompt(
 
     if vision:
 
-        sections.append(f"""
-## SCREEN ANALYSIS
+        sections.append(
+            f"""
+## Screen Analysis
 
-This screenshot is the SINGLE SOURCE OF TRUTH.
+The uploaded screenshot is the source of truth.
 
-Implement exactly this UI.
-
-Screen
+Screen:
 {vision.screen}
 
-Theme
+Theme:
 {vision.theme}
 
-Layout
+Layout:
 {vision.layout}
 
-Widgets
+Visible Widgets:
 {vision.widgets}
 
-Texts
+Visible Text:
 {vision.texts}
 
-Actions
+User Actions:
 {vision.actions}
-""".strip())
+""".strip()
+        )
 
     # ======================================================
     # FLUTTER DOCS
@@ -52,13 +52,15 @@ Actions
 
     if flutter_context.strip():
 
-        sections.append(f"""
-## FLUTTER DOCS
+        sections.append(
+            f"""
+## Flutter Documentation
 
-Use ONLY if new Flutter APIs or widgets are required.
+Use only when repository context is incomplete or newer Flutter APIs are required.
 
 {flutter_context}
-""".strip())
+""".strip()
+        )
 
     # ======================================================
     # FINAL PROMPT
@@ -67,119 +69,112 @@ Use ONLY if new Flutter APIs or widgets are required.
     return f"""
 You are an expert Flutter engineer.
 
-You are modifying an EXISTING Flutter project.
+Your task is to implement the requested screen inside an existing Flutter project.
 
-===========================================================================
-PRIORITY
-===========================================================================
+Do not explain your decisions.
+Do not redesign the UI.
+Generate code only.
+
+--------------------------------------------------
+
+## Priority
 
 1. Screenshot
 2. User request
-3. Existing project code
-4. Flutter docs
+3. Existing project
+4. Flutter documentation
 
-If repository code conflicts with the screenshot,
-follow the screenshot.
+If there is any conflict, always follow the screenshot.
 
-===========================================================================
-PROJECT RULES
-===========================================================================
+--------------------------------------------------
 
-Reuse existing widgets whenever possible.
+## Existing Project Rules
 
-Reuse:
+Prefer reusing existing:
 
 - AppTheme
 - AppColors
 - ThemeProvider
-- Design System
-- Existing Sections
-- Existing Widgets
+- reusable widgets
+- reusable sections
+- shared components
+- navigation
 
-Never rename existing files.
+Prefer modifying existing files instead of creating new ones.
 
-Never redesign the architecture.
+Only create new widgets when absolutely necessary.
 
-Only create new widgets when required.
+Do not rename existing files.
 
-===========================================================================
-IMPORTANT
-===========================================================================
+Do not redesign the project architecture.
 
-Your goal is to generate a WORKING UI.
+--------------------------------------------------
 
-Do NOT spend time explaining.
-
-Do NOT describe Flutter concepts.
-
-Do NOT explain architecture.
-
-Do NOT produce long paragraphs.
-
-Generate code quickly.
-
-If a reusable widget is unavailable,
-replace it with a normal Flutter widget.
-
-Never stop because context is incomplete.
-
-===========================================================================
-SCREEN
-===========================================================================
+## Screen Information
 
 {chr(10).join(sections)}
 
-===========================================================================
-USER REQUEST
-===========================================================================
+--------------------------------------------------
+
+## User Request
 
 {question}
 
-===========================================================================
-REFERENCE PROJECT CODE
-===========================================================================
+--------------------------------------------------
 
-Use ONLY if useful.
+## Existing Project Context
 
-Ignore unrelated files.
+Use only relevant files.
+
+Ignore unrelated code.
 
 {project_context}
 
-===========================================================================
-OUTPUT FORMAT
-===========================================================================
+--------------------------------------------------
 
-Return ONLY these sections.
+## Requirements
+
+Generate production-ready Flutter code.
+
+The generated code must:
+
+- compile
+- include imports
+- include a StatelessWidget or StatefulWidget
+- implement build()
+- include helper widgets if required
+- include placeholder data if necessary
+- contain no TODOs
+- contain no pseudocode
+- complete every widget implementation
+
+If repository code is incomplete, complete it using Flutter best practices.
+
+--------------------------------------------------
+
+## Output Format
+
+Return markdown only.
+
+Use exactly this format.
 
 ## Reusable Widgets
 
-• widget names only
+- widget names only
 
 ## Files To Modify
 
-• filenames only
+- file names only
 
 ## Files To Create
 
-• filenames only
+- file names only
 
 ## Flutter Code
 
-Generate ONE compilable Dart file.
+Generate ONE complete Dart file.
 
-Requirements:
-
-- imports
-- StatelessWidget
-- build()
-- helper widgets if needed
-- placeholder data if required
-- no TODOs
-- no pseudocode
-- no markdown explanations inside code
-- maximum 250 lines of Dart
-
-Do NOT explain your code.
+Maximum 250 lines.
 
 Finish immediately after the closing brace of the Dart code.
 """.strip()
