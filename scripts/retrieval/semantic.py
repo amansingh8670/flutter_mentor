@@ -1,6 +1,11 @@
 import chromadb
 
-from scripts.config import CHROMA_PATH
+from scripts.config import (
+    CHROMA_PATH,
+    REPO_COLLECTION,
+    SEMANTIC_RESULTS,
+)
+
 from scripts.llm.embeddings import get_embedding
 from scripts.models.retrieval_models import RetrievedChunk
 
@@ -10,12 +15,45 @@ from scripts.models.retrieval_models import RetrievedChunk
 # ==========================================================
 
 client = chromadb.PersistentClient(
-    path=CHROMA_PATH
+    path=CHROMA_PATH,
 )
 
 collection = client.get_collection(
-    "flutter_repo"
+    REPO_COLLECTION,
 )
+
+
+# ==========================================================
+# HELPERS
+# ==========================================================
+
+def _boost_score(
+    query: str,
+    metadata: dict,
+    distance: float,
+) -> float:
+    """
+    Apply simple heuristics to improve semantic ranking.
+    """
+
+    query = query.lower()
+
+    file_name = metadata.get("file", "").lower()
+    chunk_name = metadata.get("chunk_name", "").lower()
+    path = metadata.get("path", "").lower()
+
+    score = -distance
+
+    if query in file_name:
+        score += 0.40
+
+    if query in chunk_name:
+        score += 0.60
+
+    if query in path:
+        score += 0.20
+
+    return score
 
 
 # ==========================================================
@@ -24,40 +62,59 @@ collection = client.get_collection(
 
 def semantic_search(
     query: str,
-    limit: int = 5,
+    limit: int = SEMANTIC_RESULTS,
 ) -> list[RetrievedChunk]:
     """
-    Performs vector search against the indexed Flutter repository.
+    Semantic retrieval over the indexed Flutter repository.
     """
 
     embedding = get_embedding(query)
 
-    results = collection.query(
+    # retrieve more candidates than needed
+    raw = collection.query(
         query_embeddings=[embedding],
-        n_results=limit,
+        n_results=max(limit * 4, 10),
     )
 
-    documents = results.get("documents", [[]])[0]
-    metadatas = results.get("metadatas", [[]])[0]
-    distances = results.get("distances", [[]])[0]
+    documents = raw.get("documents", [[]])[0]
+    metadatas = raw.get("metadatas", [[]])[0]
+    distances = raw.get("distances", [[]])[0]
 
     chunks: list[RetrievedChunk] = []
 
-    for index, metadata in enumerate(metadatas):
+    seen = set()
 
-        if metadata is None:
+    for i, metadata in enumerate(metadatas):
+
+        if not metadata:
             continue
 
+        key = (
+            metadata.get("path"),
+            metadata.get("chunk_name"),
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
         document = (
-            documents[index]
-            if index < len(documents)
+            documents[i]
+            if i < len(documents)
             else ""
         )
 
         distance = (
-            distances[index]
-            if index < len(distances)
-            else 0.0
+            distances[i]
+            if i < len(distances)
+            else 999.0
+        )
+
+        score = _boost_score(
+            query,
+            metadata,
+            distance,
         )
 
         chunks.append(
@@ -74,11 +131,16 @@ def semantic_search(
                 ),
                 document=document,
                 source="semantic",
-                score=1.0 - float(distance),
+                score=score,
             )
         )
 
-    return chunks
+    chunks.sort(
+        key=lambda x: x.score,
+        reverse=True,
+    )
+
+    return chunks[:limit]
 
 
 # ==========================================================
@@ -103,7 +165,7 @@ if __name__ == "__main__":
         for result in results:
 
             print(
-                f"{result.score:.3f} | "
-                f"{result.file} | "
+                f"{result.score:8.2f} | "
+                f"{result.file:35} | "
                 f"{result.chunk_name}"
             )
