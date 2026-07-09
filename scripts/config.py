@@ -56,10 +56,10 @@ EMBED_URL = f"{OLLAMA_BASE_URL}/api/embeddings"
 # ==========================================================
 
 # Planner model
-PLANNER_MODEL = "gemma3:12b"
+PLANNER_MODEL = "deepseek-coder:6.7b"
 
 # Generator model
-GENERATOR_MODEL = "gemma3:12b"
+GENERATOR_MODEL = "deepseek-coder:6.7b"
 
 # Backward compatibility
 CHAT_MODEL = GENERATOR_MODEL
@@ -75,7 +75,7 @@ EMBED_MODEL = "nomic-embed-text"
 
 LLM_CONTEXT_SIZE = 8912
 
-LLM_MAX_OUTPUT = 768
+LLM_MAX_OUTPUT = 1344
 
 LLM_TEMPERATURE = 0.1
 

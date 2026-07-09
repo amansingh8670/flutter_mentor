@@ -63,9 +63,7 @@ Follow the implementation plan exactly.
 
 ## Existing Project
 
-Reuse existing widgets, themes and components whenever possible.
-
-If an existing widget is unsuitable or incomplete, implement the UI using standard Flutter widgets.
+Implement the UI using standard Flutter widgets and the existing codebase.
 
 {project_context}
 
@@ -75,17 +73,17 @@ If an existing widget is unsuitable or incomplete, implement the UI using standa
 
 ## Requirements
 
-Generate production-ready Flutter code.
+Generate dart code corresponding to the implementation plan.
 
 Every generated file must:
 - compile
-- include imports
+- not necessary to include imports
 - include all required widgets
-- include helper methods if needed
-- avoid TODOs and pseudocode
 - contain no omitted implementations
 
-If repository code is incomplete, complete it using Flutter best practices.
+If repository code is incomplete, complete it using Flutter best practices and latest documentation.
+
+
 
 ---
 

@@ -17,7 +17,7 @@ from scripts.models.vision_schema import VisionAnalysis
 # ==========================================================
 
 VISION_PROMPT = """
-You are a Senior Flutter UI Architect.
+You are a Senior Frontend Architect who is good at dividing UI designs and screenshots into tangible Flutter(Dart) widgets.
 
 Analyze the screenshot for Flutter code retrieval.
 
@@ -38,17 +38,6 @@ Schema:
 }
 
 Rules
-
-- Theme must be "light" or "dark"
-- Ignore status bar
-- Ignore device frame
-- Ignore keyboard
-- Ignore animations
-- Ignore placeholder values
-- Ignore passwords
-- Ignore email addresses
-- Prefer reusable UI sections
-- Return semantic widget names
 - Return ONLY JSON
 """
 
